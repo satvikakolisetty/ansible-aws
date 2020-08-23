@@ -1,0 +1,50 @@
+- hosts: localhost
+  vars_files: 
+       - cred.yml
+  tasks:
+    - name: os in cloud
+      ec2:
+        key_name: "mykey22"
+        instance_type: "t2.micro"
+        image: "ami-0ebc1ac48dfd14136"
+        wait: yes
+        region: "ap-south-1"
+        state: present
+        count: 1
+        vpc_subnet_id: "subnet-d048239c"
+        group_id: "sg-01c5c54f82afa9627"
+        assign_public_ip: yes
+        aws_access_key: "{{username}}"
+        aws_secret_key: "{{password}}"
+        instance_tags:
+              Name: "webserver"
+      register: ec2 
+    - debug:
+            var: "{{ ec2['instances'][0]['public_ip']}}"
+    - name: adding new instance to the host group
+      add_host:
+              hostname:  "{{ ec2['instances'][0]['public_ip']}}"
+              groupname: launched
+      with_items: ec2.instances
+    - name: wait 
+      pause: seconds=10
+    - name: connecting ssh
+      wait_for:
+              host:  "{{ ec2['instances'][0]['public_ip']}}"
+              port: 22
+              state: started
+              delay: 60
+              timeout: 320
+      with_items: ec2.instances
+    - name: install httpd package
+      yum:
+              name: "httpd"
+              state: present
+    - name: copies file from src to dest
+      copy:
+              src: "index.html"
+              dest:  "/var/www/html/"
+    - service:
+            name: "httpd"
+            state: started
+      
